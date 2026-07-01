@@ -73,7 +73,7 @@ mkdir -p assets/icons
 
 ```
 SUPABASE_URL=
-SUPABASE_ANON_KEY=
+SUPABASE_KEY=
 KAKAO_NATIVE_APP_KEY=
 GOOGLE_MAPS_API_KEY=
 ```
@@ -237,7 +237,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class Env {
   static String get supabaseUrl => dotenv.get('SUPABASE_URL');
-  static String get supabaseAnonKey => dotenv.get('SUPABASE_ANON_KEY');
+  static String get supabaseAnonKey => dotenv.get('SUPABASE_KEY');
   static String get kakaoNativeAppKey => dotenv.get('KAKAO_NATIVE_APP_KEY');
   static String get googleMapsApiKey => dotenv.get('GOOGLE_MAPS_API_KEY');
 }
@@ -302,7 +302,7 @@ git push -u origin main --force
 ## 완료 후 확인사항
 
 - [ ] `flutter pub get` 에러 없이 완료
-- [ ] `.env` 파일에 Supabase URL / anon key 채우기 필요 (혜림이 직접)
+- [ ] `.env` 파일에 Supabase URL / anon key 채우기 필요
 - [ ] `flutter run` 으로 빈 화면 실행 확인
 - [ ] GitHub 레포에 Flutter 코드 push 확인
 - [ ] 카카오/구글 로그인 키는 다음 단계에서 채움
