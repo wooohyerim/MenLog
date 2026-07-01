@@ -1,0 +1,5 @@
+package com.menlog.menlog
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()
