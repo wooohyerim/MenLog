@@ -111,6 +111,11 @@ class _Wordmark extends StatelessWidget {
   }
 }
 
+const double _buttonWidth = 240;
+const double _buttonGap = 12;
+const double _kakaoButtonAspectRatio = 366 / 90;
+const double _googleButtonAspectRatio = 376 / 88;
+
 class _LoginButtons extends StatelessWidget {
   const _LoginButtons({
     required this.isLoading,
@@ -127,19 +132,16 @@ class _LoginButtons extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _OAuthButton(
-          label: '카카오로 시작하기',
-          backgroundColor: const Color(0xFFFEE500),
-          foregroundColor: const Color(0xFF191919),
+        _OAuthImageButton(
+          assetName: 'assets/icons/kakao_login_button.png',
+          aspectRatio: _kakaoButtonAspectRatio,
           isLoading: isLoading,
           onTap: onKakaoTap,
         ),
-        const SizedBox(height: 12),
-        _OAuthButton(
-          label: 'Google로 시작하기',
-          backgroundColor: Colors.white,
-          foregroundColor: const Color(0xFF191919),
-          borderColor: const Color(0xFFDADCE0),
+        const SizedBox(height: _buttonGap),
+        _OAuthImageButton(
+          assetName: 'assets/icons/google_login_button.png',
+          aspectRatio: _googleButtonAspectRatio,
           isLoading: isLoading,
           onTap: onGoogleTap,
         ),
@@ -148,71 +150,51 @@ class _LoginButtons extends StatelessWidget {
   }
 }
 
-class _OAuthButton extends StatelessWidget {
-  const _OAuthButton({
-    required this.label,
-    required this.backgroundColor,
-    required this.foregroundColor,
+class _OAuthImageButton extends StatelessWidget {
+  const _OAuthImageButton({
+    required this.assetName,
+    required this.aspectRatio,
     required this.isLoading,
     required this.onTap,
-    this.borderColor,
   });
 
-  final String label;
-  final Color backgroundColor;
-  final Color foregroundColor;
-  final Color? borderColor;
+  final String assetName;
+  final double aspectRatio;
   final bool isLoading;
   final VoidCallback onTap;
 
-  VoidCallback? get _onPressed {
+  VoidCallback? get _onTap {
     if (isLoading) return null;
     return onTap;
   }
 
-  BorderSide get _side {
-    final color = borderColor;
-    if (color == null) return BorderSide.none;
-    return BorderSide(color: color);
-  }
-
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      child: ElevatedButton(
-        onPressed: _onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: backgroundColor,
-          foregroundColor: foregroundColor,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: _side,
+    return GestureDetector(
+      onTap: _onTap,
+      child: SizedBox(
+        width: _buttonWidth,
+        child: AspectRatio(
+          aspectRatio: aspectRatio,
+          child: Image.asset(
+            assetName,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('이미지 로드 실패: $assetName, $error');
+              return const _ImagePlaceholder();
+            },
           ),
         ),
-        child: _OAuthButtonContent(label: label, isLoading: isLoading),
       ),
     );
   }
 }
 
-class _OAuthButtonContent extends StatelessWidget {
-  const _OAuthButtonContent({required this.label, required this.isLoading});
-
-  final String label;
-  final bool isLoading;
+class _ImagePlaceholder extends StatelessWidget {
+  const _ImagePlaceholder();
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return const SizedBox(
-        width: 20,
-        height: 20,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      );
-    }
-
-    return Text(label, style: const TextStyle(fontWeight: FontWeight.w600));
+    return Container(color: Colors.grey.shade300);
   }
 }
