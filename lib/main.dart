@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:menlog/core/constants/env.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'core/constants/env.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,7 +11,7 @@ Future<void> main() async {
 
   await Supabase.initialize(
     url: Env.supabaseUrl,
-    publishableKey: Env.supabaseAnonKey,
+    publishableKey: Env.supabaseKey,
   );
 
   runApp(const ProviderScope(child: MenlogApp()));
@@ -22,10 +22,10 @@ class MenlogApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       title: '멘로그',
       debugShowCheckedModeBanner: false,
-      home: const Placeholder(),
+      home: Placeholder(),
     );
   }
 }
