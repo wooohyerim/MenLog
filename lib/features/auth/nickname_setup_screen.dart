@@ -60,9 +60,9 @@ class _NicknameSetupScreenState extends ConsumerState<NicknameSetupScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('저장에 실패했어요. 다시 시도해주세요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('저장에 실패했어요. 다시 시도해주세요')));
     }
   }
 
@@ -81,7 +81,7 @@ class _NicknameSetupScreenState extends ConsumerState<NicknameSetupScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '그룹원들에게 보여질 이름이에요',
+              '친구에게 보여질 이름이에요',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 16),
