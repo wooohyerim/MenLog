@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:menlog/data/repositories/auth_repository.dart';
+import 'package:menlog/features/auth/widgets/google_login_button.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -114,7 +115,6 @@ class _Wordmark extends StatelessWidget {
 const double _buttonWidth = 240;
 const double _buttonGap = 12;
 const double _kakaoButtonAspectRatio = 366 / 90;
-const double _googleButtonAspectRatio = 376 / 88;
 
 class _LoginButtons extends StatelessWidget {
   const _LoginButtons({
@@ -126,6 +126,11 @@ class _LoginButtons extends StatelessWidget {
   final bool isLoading;
   final VoidCallback onKakaoTap;
   final VoidCallback onGoogleTap;
+
+  VoidCallback? get _onGoogleTap {
+    if (isLoading) return null;
+    return onGoogleTap;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -139,12 +144,7 @@ class _LoginButtons extends StatelessWidget {
           onTap: onKakaoTap,
         ),
         const SizedBox(height: _buttonGap),
-        _OAuthImageButton(
-          assetName: 'assets/icons/google_login_button.png',
-          aspectRatio: _googleButtonAspectRatio,
-          isLoading: isLoading,
-          onTap: onGoogleTap,
-        ),
+        GoogleLoginButton(onPressed: _onGoogleTap),
       ],
     );
   }
