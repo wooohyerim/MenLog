@@ -13,7 +13,9 @@ const double _taglineWidth = 180;
 const double _taglineTextPadding = 12;
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.redirectPath = '/home'});
+
+  final String redirectPath;
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();

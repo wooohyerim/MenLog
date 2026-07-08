@@ -7,7 +7,9 @@ import 'package:menlog/features/auth/auth_provider.dart';
 const int _nicknameMaxLength = 12;
 
 class NicknameSetupScreen extends ConsumerStatefulWidget {
-  const NicknameSetupScreen({super.key});
+  const NicknameSetupScreen({super.key, this.redirectPath = '/home'});
+
+  final String redirectPath;
 
   @override
   ConsumerState<NicknameSetupScreen> createState() =>
@@ -60,7 +62,7 @@ class _NicknameSetupScreenState extends ConsumerState<NicknameSetupScreen> {
         email: user.email,
       );
       if (!mounted) return;
-      context.go('/home');
+      context.go(widget.redirectPath);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
