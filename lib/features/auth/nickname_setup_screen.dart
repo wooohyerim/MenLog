@@ -54,12 +54,17 @@ class _NicknameSetupScreenState extends ConsumerState<NicknameSetupScreen> {
     });
 
     try {
-      await authRepository.upsertUser(userId: user.id, nickname: nickname);
+      await authRepository.upsertUser(
+        userId: user.id,
+        nickname: nickname,
+        email: user.email,
+      );
       if (!mounted) return;
       context.go('/home');
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
+      debugPrint('닉네임 저장 에러: $e');
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('저장에 실패했어요. 다시 시도해주세요')));

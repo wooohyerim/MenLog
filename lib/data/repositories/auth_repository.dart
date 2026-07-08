@@ -32,11 +32,13 @@ class AuthRepository {
     required String userId,
     required String nickname,
     String? avatarUrl,
+    String? email,
   }) async {
     await supabase.from('users').upsert({
       'id': userId,
       'nickname': nickname,
       'avatar_url': avatarUrl,
+      'email': email,
     });
   }
 
