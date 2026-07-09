@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:menlog/core/constants/app_colors.dart';
 import 'package:menlog/core/constants/tagline_style.dart';
 import 'package:menlog/data/repositories/auth_repository.dart';
 import 'package:menlog/features/auth/widgets/google_login_button.dart';
@@ -82,7 +83,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEDE0CC),
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Stack(
           children: [
@@ -121,7 +122,7 @@ class _Wordmark extends StatelessWidget {
             fontSize: 28,
             fontWeight: FontWeight.bold,
             letterSpacing: 6,
-            color: Color(0xFF4A3222),
+            color: AppColors.wordmark,
           ),
         ),
         SizedBox(height: _taglineGap),
