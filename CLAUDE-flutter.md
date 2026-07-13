@@ -31,6 +31,7 @@ dependencies:
   go_router: ^14.6.2
   image_picker: ^1.1.2
   cached_network_image: ^3.4.1
+  http: ^1.2.0
 
 dev_dependencies:
   riverpod_generator: ^2.6.3
@@ -38,6 +39,8 @@ dev_dependencies:
   custom_lint: ^0.7.0
   riverpod_lint: ^2.6.3
 ```
+
+> `http`는 지도/추천/기록하기 탭이 공유하는 라멘집 검색 저장소(`RamenShopSearchRepository`)에서 Google Places API를 직접 호출하기 위해 추가 (기획서 6장 공통 모듈 설계 참고).
 
 ---
 
@@ -51,7 +54,9 @@ mkdir -p lib/data/models
 mkdir -p lib/data/repositories
 mkdir -p lib/features/auth
 mkdir -p lib/features/home
+mkdir -p lib/features/feed
 mkdir -p lib/features/record
+mkdir -p lib/features/recommend
 mkdir -p lib/features/group
 mkdir -p lib/shared/widgets
 mkdir -p assets/images
@@ -61,8 +66,13 @@ mkdir -p assets/icons
 설명:
 - `core` — 라우터, 테마, 상수 등 앱 전역 설정
 - `data/models` — Supabase 테이블 대응 데이터 모델 (Dart class, freezed 없이 순수 class + fromJson/toJson)
-- `data/repositories` — Supabase 쿼리 로직
+- `data/repositories` — Supabase 쿼리 로직 + 공통 검색 모듈(`RamenShopSearchRepository`)
 - `features/*` — 화면별 폴더 (view + provider + widgets 하위 구조)
+  - `home` — 지도 탭 (기획서 IA 기준 하단 탭 4개는 `home`/`feed`/`record`/`recommend`로 대응)
+  - `feed` — 피드 탭 (신규, 좋아요/댓글 포함)
+  - `record` — 기록하기(+) 탭
+  - `recommend` — 추천 탭 (신규, 규칙 기반 스코어링 + Claude API)
+  - `group` — 별도 탭이 아니라 **지도 탭 화면 상단 아이콘에서 진입하는 서브 화면** (그룹원 목록 + 초대 코드 공유). 폴더명은 기존 `groups`/`group_members` 라벨을 유지하되, 라우팅상 하단 탭이 아님에 유의
 - `shared/widgets` — 공통 컴포넌트
 
 ---
@@ -198,6 +208,63 @@ class Visit {
 }
 ```
 
+### lib/data/models/visit_like.dart
+```dart
+class VisitLike {
+  final String id;
+  final String visitId;
+  final String userId;
+  final DateTime createdAt;
+
+  VisitLike({
+    required this.id,
+    required this.visitId,
+    required this.userId,
+    required this.createdAt,
+  });
+
+  factory VisitLike.fromJson(Map<String, dynamic> json) {
+    return VisitLike(
+      id: json['id'] as String,
+      visitId: json['visit_id'] as String,
+      userId: json['user_id'] as String,
+      createdAt: DateTime.parse(json['created_at'] as String),
+    );
+  }
+}
+```
+
+### lib/data/models/visit_comment.dart
+```dart
+class VisitComment {
+  final String id;
+  final String visitId;
+  final String userId;
+  final String content;
+  final DateTime createdAt;
+
+  VisitComment({
+    required this.id,
+    required this.visitId,
+    required this.userId,
+    required this.content,
+    required this.createdAt,
+  });
+
+  factory VisitComment.fromJson(Map<String, dynamic> json) {
+    return VisitComment(
+      id: json['id'] as String,
+      visitId: json['visit_id'] as String,
+      userId: json['user_id'] as String,
+      content: json['content'] as String,
+      createdAt: DateTime.parse(json['created_at'] as String),
+    );
+  }
+}
+```
+
+> `visit_likes`/`visit_comments` 테이블은 기획서 4~5장(피드 좋아요/댓글) 기준 신규 테이블이며, `supabase/migrations`에 마이그레이션이 먼저 추가되어야 한다.
+
 ### lib/data/models/group.dart
 ```dart
 class Group {
@@ -306,3 +373,27 @@ git push -u origin main --force
 - [ ] `flutter run` 으로 빈 화면 실행 확인
 - [ ] GitHub 레포에 Flutter 코드 push 확인
 - [ ] 카카오/구글 로그인 키는 다음 단계에서 채움
+
+---
+
+## 참고. 공통 라멘집 검색 모듈 (RamenShopSearchRepository)
+
+기획서 6장에서 확정된 내용으로, 초기 세팅 이후 지도/추천/기록하기 탭을 구현할 때 아래 저장소를 먼저 만들고 세 곳에서 공유해야 한다 (각자 따로 구현 금지).
+
+### lib/data/repositories/ramen_shop_search_repository.dart (설계 초안)
+- 입력: 검색어(선택), 위치 좌표(위치 편향), 검색 반경(선택)
+- 출력: 정규화된 결과 리스트 — 각 항목에 `isRegistered`(우리 `ramen_shops`에 이미 있는지), `visitCount`(그룹 방문 횟수, 0이면 미방문) 플래그 포함
+- Google Places API 호출은 `http` 패키지로 직접 REST 호출
+- 사용처별 분기
+  - 지도 탭: `isRegistered && visitCount > 0` → 폴라로이드 핀 / 그 외 → 심플 핀
+  - 추천 탭: `visitCount > 0`인 곳은 후보에서 제외
+  - 기록하기(+) 탭: `isRegistered = false`인 곳 선택 시 저장 단계에서 `ramen_shops`에 신규 upsert (`google_place_id` 기준)
+- 캐싱/디바운스: 검색어+위치 버킷 단위로 클라이언트 메모리에 짧은 TTL 캐싱, 중복 호출 방지용 디바운스(약 300ms) 적용
+
+### ⚠️ 사전 확인 필요
+`ramen_shops.google_place_id`에 UNIQUE 제약이 걸려 있는지 먼저 확인할 것. 없으면 upsert 로직에서 같은 매장이 중복 row로 쌓일 수 있으므로, 아래 마이그레이션을 `supabase/migrations`에 추가한다.
+
+```sql
+alter table public.ramen_shops
+  add constraint ramen_shops_google_place_id_key unique (google_place_id);
+```
