@@ -4,11 +4,11 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:menlog/core/constants/supabase_client.dart';
+import 'package:menlog/core/navigation/main_tab_shell.dart';
 import 'package:menlog/data/repositories/auth_repository.dart';
 import 'package:menlog/features/auth/auth_provider.dart';
 import 'package:menlog/features/auth/login_screen.dart';
 import 'package:menlog/features/auth/nickname_setup_screen.dart';
-import 'package:menlog/features/home/home_screen.dart';
 
 const String _defaultRedirectPath = '/home';
 
@@ -64,7 +64,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return NicknameSetupScreen(redirectPath: redirectPath);
         },
       ),
-      GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+      GoRoute(
+        path: '/home',
+        builder: (context, state) => const MainTabShell(),
+      ),
       GoRoute(
         path: '/record',
         builder: (context, state) => const Placeholder(),
