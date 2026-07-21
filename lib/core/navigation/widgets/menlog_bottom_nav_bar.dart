@@ -7,11 +7,12 @@ const double _kNavBarHeight = 64;
 const double _kIconSize = 22;
 const double _kLabelFontSize = 11;
 const double _kLabelSpacing = 2;
+const double _kRecordButtonDiameter = 40;
 
-/// 하단 탭바 마크업 (지도/피드/기록/추천).
+/// 하단 탭바 마크업 (지도/피드/기록/추천/설정).
 ///
-/// [onRecordTap]은 기록 탭 전용 콜백이고, 나머지 3개 탭은 [onTabSelected]로
-/// 처리됩니다.
+/// 기록하기는 [MenlogTab]에 속하지 않는 별도 액션이라 탭 목록 중앙에
+/// 동그란 버튼으로 끼워 넣습니다.
 class MenlogBottomNavBar extends StatelessWidget {
   const MenlogBottomNavBar({
     required this.currentTab,
@@ -36,7 +37,13 @@ class MenlogBottomNavBar extends StatelessWidget {
       child: SizedBox(
         height: _kNavBarHeight,
         child: Row(
-          children: MenlogTab.values.map(_buildTabItem).toList(),
+          children: [
+            _buildTabItem(MenlogTab.map),
+            _buildTabItem(MenlogTab.feed),
+            _buildRecordItem(),
+            _buildTabItem(MenlogTab.recommend),
+            _buildTabItem(MenlogTab.settings),
+          ],
         ),
       ),
     );
@@ -47,17 +54,39 @@ class MenlogBottomNavBar extends StatelessWidget {
       child: _MenlogNavItem(
         tab: tab,
         isSelected: tab == currentTab,
-        onTap: () => _handleTap(tab),
+        onTap: () => onTabSelected(tab),
       ),
     );
   }
 
-  void _handleTap(MenlogTab tab) {
-    if (tab.isAction) {
-      onRecordTap();
-      return;
-    }
-    onTabSelected(tab);
+  Widget _buildRecordItem() {
+    return Expanded(
+      child: Center(child: _RecordButton(onTap: onRecordTap)),
+    );
+  }
+}
+
+/// 하단 탭바 중앙에 끼워지는 동그란 "기록하기" 버튼.
+class _RecordButton extends StatelessWidget {
+  const _RecordButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: MenlogColors.primary,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: const SizedBox(
+          width: _kRecordButtonDiameter,
+          height: _kRecordButtonDiameter,
+          child: Icon(Icons.add, color: Colors.white),
+        ),
+      ),
+    );
   }
 }
 

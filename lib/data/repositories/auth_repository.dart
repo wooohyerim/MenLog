@@ -17,6 +17,10 @@ class AuthRepository {
     );
   }
 
+  Future<void> signOut() async {
+    await supabase.auth.signOut();
+  }
+
   Future<bool> isNewUser(String userId) async {
     final result = await supabase
         .from('users')
