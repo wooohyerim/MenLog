@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class CroppedGoogleSymbol extends StatelessWidget {
   const CroppedGoogleSymbol({super.key});
 
-  static const double _symbolSize = 32;
+  static const double _symbolSize = 30;
   static const double _symbolScaleFactor = 1.55;
 
   @override

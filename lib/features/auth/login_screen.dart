@@ -4,6 +4,7 @@ import 'package:menlog/core/constants/app_colors.dart';
 import 'package:menlog/core/constants/tagline_style.dart';
 import 'package:menlog/data/repositories/auth_repository.dart';
 import 'package:menlog/features/auth/widgets/google_login_button.dart';
+import 'package:menlog/features/auth/widgets/kakao_login_button.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const String _logoIconAsset = 'assets/icons/ramen_icon.png';
@@ -181,9 +182,7 @@ class _LogoIcon extends StatelessWidget {
   }
 }
 
-const double _buttonWidth = 240;
 const double _buttonGap = 12;
-const double _kakaoButtonAspectRatio = 366 / 90;
 
 class _LoginButtons extends StatelessWidget {
   const _LoginButtons({
@@ -196,6 +195,11 @@ class _LoginButtons extends StatelessWidget {
   final VoidCallback onKakaoTap;
   final VoidCallback onGoogleTap;
 
+  VoidCallback? get _onKakaoTap {
+    if (isLoading) return null;
+    return onKakaoTap;
+  }
+
   VoidCallback? get _onGoogleTap {
     if (isLoading) return null;
     return onGoogleTap;
@@ -206,64 +210,10 @@ class _LoginButtons extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _OAuthImageButton(
-          assetName: 'assets/icons/kakao_login_button.png',
-          aspectRatio: _kakaoButtonAspectRatio,
-          isLoading: isLoading,
-          onTap: onKakaoTap,
-        ),
+        KakaoLoginButton(onPressed: _onKakaoTap),
         const SizedBox(height: _buttonGap),
         GoogleLoginButton(onPressed: _onGoogleTap),
       ],
     );
-  }
-}
-
-class _OAuthImageButton extends StatelessWidget {
-  const _OAuthImageButton({
-    required this.assetName,
-    required this.aspectRatio,
-    required this.isLoading,
-    required this.onTap,
-  });
-
-  final String assetName;
-  final double aspectRatio;
-  final bool isLoading;
-  final VoidCallback onTap;
-
-  VoidCallback? get _onTap {
-    if (isLoading) return null;
-    return onTap;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _onTap,
-      child: SizedBox(
-        width: _buttonWidth,
-        child: AspectRatio(
-          aspectRatio: aspectRatio,
-          child: Image.asset(
-            assetName,
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              debugPrint('이미지 로드 실패: $assetName, $error');
-              return const _ImagePlaceholder();
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ImagePlaceholder extends StatelessWidget {
-  const _ImagePlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(color: Colors.grey.shade300);
   }
 }

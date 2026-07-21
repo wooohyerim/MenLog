@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:menlog/core/constants/button_size.dart';
-import 'package:menlog/features/auth/widgets/cropped_google_symbol.dart';
+import 'package:menlog/features/auth/widgets/cropped_kakao_symbol.dart';
 
-class GoogleLoginButton extends StatelessWidget {
-  const GoogleLoginButton({super.key, required this.onPressed});
+class KakaoLoginButton extends StatelessWidget {
+  const KakaoLoginButton({super.key, required this.onPressed});
 
   final VoidCallback? onPressed;
 
-  static const double _symbolTextGap = 6;
+  static const Color _kakaoYellow = Color(0xFFFEE500);
+  static const Color _kakaoTextColor = Color(0xFF191919);
+  static const double _symbolTextGap = 0;
   static const double _borderRadius = 12;
   static const double _textFontSize = 18;
 
@@ -17,7 +19,7 @@ class GoogleLoginButton extends StatelessWidget {
       width: ButtonSize.loginButtonWidth,
       height: ButtonSize.loginButtonHeight,
       child: Material(
-        color: Colors.white,
+        color: _kakaoYellow,
         borderRadius: BorderRadius.circular(_borderRadius),
         child: InkWell(
           borderRadius: BorderRadius.circular(_borderRadius),
@@ -28,14 +30,13 @@ class GoogleLoginButton extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CroppedGoogleSymbol(),
+                  CroppedKakaoSymbol(),
                   SizedBox(width: _symbolTextGap),
                   Text(
-                    '구글로 시작하기',
+                    '카카오톡으로 시작하기',
                     style: TextStyle(
-                      color: Color(0xFF1F1F1F),
+                      color: _kakaoTextColor,
                       fontWeight: FontWeight.w700,
-                      fontFamily: 'Roboto',
                       fontSize: _textFontSize,
                     ),
                   ),
