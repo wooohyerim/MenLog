@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:menlog/core/constants/supabase_client.dart';
 import 'package:menlog/core/navigation/main_tab_shell.dart';
 import 'package:menlog/data/repositories/auth_repository.dart';
-import 'package:menlog/features/auth/auth_provider.dart';
 import 'package:menlog/features/auth/login_screen.dart';
 import 'package:menlog/features/auth/nickname_setup_screen.dart';
 
@@ -32,7 +31,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           state.uri.queryParameters['redirect'] ?? _defaultRedirectPath;
       _lastKnownRedirectPath = redirectPath;
 
-      final user = ref.read(currentUserProvider);
+      // ref.read(currentUserProvider)는 이 콜백과는 별개로 같은
+      // supabase.auth.onAuthStateChange 스트림을 구독하고 있어, 리스너
+      // 등록 순서에 따라 로그아웃 직후에도 이전 로그인 상태를 그대로
+      // 반환할 수 있다. 세션의 진짜 상태를 보려면 SDK 값을 직접 읽는다.
+      final user = supabase.auth.currentUser;
       if (user == null) return null;
 
       final isNew = await authRepository.isNewUser(user.id);
