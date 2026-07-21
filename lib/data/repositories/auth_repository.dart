@@ -7,6 +7,7 @@ class AuthRepository {
     await supabase.auth.signInWithOAuth(
       OAuthProvider.kakao,
       redirectTo: AuthConstants.oauthRedirectUrl,
+      authScreenLaunchMode: LaunchMode.externalApplication,
     );
   }
 
@@ -14,6 +15,7 @@ class AuthRepository {
     await supabase.auth.signInWithOAuth(
       OAuthProvider.google,
       redirectTo: AuthConstants.oauthRedirectUrl,
+      authScreenLaunchMode: LaunchMode.externalApplication,
     );
   }
 

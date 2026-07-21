@@ -54,7 +54,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       await authRepository.signInWithKakao();
     } on AuthException catch (e) {
       _showError(e.message);
-    } catch (_) {
+    } catch (e, stackTrace) {
+      debugPrint('카카오 로그인 실패: $e\n$stackTrace');
       _showError('로그인 중 오류가 발생했어요');
     }
   }
@@ -66,7 +67,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       await authRepository.signInWithGoogle();
     } on AuthException catch (e) {
       _showError(e.message);
-    } catch (_) {
+    } catch (e, stackTrace) {
+      debugPrint('구글 로그인 실패: $e\n$stackTrace');
       _showError('로그인 중 오류가 발생했어요');
     }
   }
