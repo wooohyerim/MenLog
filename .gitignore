@@ -1,6 +1,5 @@
 # Environment variables
 .env
-ios/Flutter/Secrets.xcconfig
 
 # Miscellaneous
 *.class
