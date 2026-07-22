@@ -7,6 +7,7 @@ class AuthRepository {
     await supabase.auth.signInWithOAuth(
       OAuthProvider.kakao,
       redirectTo: AuthConstants.oauthRedirectUrl,
+      authScreenLaunchMode: LaunchMode.externalApplication,
     );
   }
 
@@ -14,6 +15,7 @@ class AuthRepository {
     await supabase.auth.signInWithOAuth(
       OAuthProvider.google,
       redirectTo: AuthConstants.oauthRedirectUrl,
+      authScreenLaunchMode: LaunchMode.externalApplication,
     );
   }
 
@@ -54,6 +56,12 @@ class AuthRepository {
         .maybeSingle();
 
     return result;
+  }
+
+  /// 본인 프로필 행을 삭제한다. visits/visit_likes/visit_comments는
+  /// DB의 ON DELETE CASCADE로 함께 삭제된다 (탈퇴 시 완전 삭제 정책).
+  Future<void> deleteAccount(String userId) async {
+    await supabase.from('users').delete().eq('id', userId);
   }
 }
 
