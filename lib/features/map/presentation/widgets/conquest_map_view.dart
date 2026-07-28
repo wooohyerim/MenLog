@@ -10,13 +10,34 @@ import 'package:menlog/data/models/sig_boundary.dart';
 const double _kBadgeFontSize = 9;
 const double _kBadgeRadius = 8;
 
+/// 전국이 점처럼 보일 만큼 축소되는 것을 막는다 — 전국 지도가 화면에 꽉
+/// 차는 배율(1.0) 밑으로는 못 내려가게 한다. 초기 화면도 이 배율로 시작해
+/// 전국이 한 번에 보이게 한다.
+const double _kMinScale = 1.0;
+
+/// 폴리곤 하나가 화면을 다 채울 만큼 과도하게 확대되는 것을 막는다.
+const double _kMaxScale = 20.0;
+
+/// 전국 지도가 화면에 꽉 차는 배율(스케일 1)일 때의 경계선 굵기. 화면
+/// 좌표계 기준으로 그려지는 게 아니라 InteractiveViewer가 확대할 콘텐츠
+/// 좌표계 기준이라, 그대로 두면 확대할수록 선도 같이 굵어진다 — 실제
+/// 화면에 보이는 굵기가 항상 이 값으로 고정되도록 현재 스케일만큼
+/// 나눠서 그린다.
+const double _kBaseBorderStrokeWidth = 0.6;
+
 /// 전국 시/군/구 정복맵. 각 지역을 [ClipPath]로 잘라낸 타일 하나로 그린다.
 ///
 /// 컬링/CustomPainter 기반 렌더링은 사진 로드 성능 이슈가 실제로 생기면
 /// 그때 검토하기로 하고, 지금은 검증된 가장 단순한 방식(지역마다 위젯
-/// 하나 + ClipPath)만 쓴다. 드릴다운(시/도 확대)은 이번 범위 밖이라 전국
-/// 256개 시/군/구를 한 번에 그린다.
-class ConquestMapView extends StatelessWidget {
+/// 하나 + ClipPath)만 쓴다. 드릴다운(시/도 확대) 대신, 팬/핀치줌이 가능한
+/// [InteractiveViewer]로 감싸 사용자가 직접 원하는 지역을 확대해서 본다.
+///
+/// 화면 전체를 채우는 배경 레이어로 쓰인다 — 자체 배경/사각 테두리 없이
+/// 화면 크기 그대로 [InteractiveViewer]를 채우고, 헤더/검색창/하단 탭바는
+/// 이 위에 반투명 그라디언트로 겹쳐 보이도록 [HomeMapScreen] 쪽에서
+/// 처리한다. 뷰포트(화면 전체 크기)와 콘텐츠(대한민국 실제 비율을 유지한
+/// 지도 자체 크기)가 서로 다를 수 있어 구분해서 계산한다.
+class ConquestMapView extends StatefulWidget {
   const ConquestMapView({
     required this.boundaries,
     required this.conquestBySggCode,
@@ -30,43 +51,113 @@ class ConquestMapView extends StatelessWidget {
   onRegionTap;
 
   @override
+  State<ConquestMapView> createState() => _ConquestMapViewState();
+}
+
+class _ConquestMapViewState extends State<ConquestMapView> {
+  final TransformationController _transformationController =
+      TransformationController();
+  bool _initialFocusApplied = false;
+
+  @override
+  void dispose() {
+    _transformationController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final bounds = _LatLngBounds.of(boundaries);
+    final bounds = _LatLngBounds.of(widget.boundaries);
 
-    return ColoredBox(
-      color: MenlogColors.background,
-      child: Center(
-        child: AspectRatio(
-          aspectRatio: bounds.aspectRatio,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final canvasSize = Size(
-                constraints.maxWidth,
-                constraints.maxHeight,
-              );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewportSize = constraints.biggest;
+        final canvasSize = _fitSize(viewportSize, bounds.aspectRatio);
 
-              return Stack(
-                children: boundaries
-                    .map(
-                      (boundary) => _RegionTile(
-                        key: ValueKey(boundary.sggCode),
-                        boundary: boundary,
-                        summary: conquestBySggCode[boundary.sggCode],
-                        bounds: bounds,
-                        canvasSize: canvasSize,
-                        onTap: () => onRegionTap(
-                          boundary,
-                          conquestBySggCode[boundary.sggCode],
+        _scheduleInitialFocus(bounds, viewportSize, canvasSize);
+
+        return InteractiveViewer(
+          transformationController: _transformationController,
+          minScale: _kMinScale,
+          maxScale: _kMaxScale,
+          child: SizedBox(
+            width: canvasSize.width,
+            height: canvasSize.height,
+            child: AnimatedBuilder(
+              animation: _transformationController,
+              builder: (context, child) {
+                final currentScale = _transformationController.value
+                    .getMaxScaleOnAxis();
+
+                return Stack(
+                  children: widget.boundaries
+                      .map(
+                        (boundary) => _RegionTile(
+                          key: ValueKey(boundary.sggCode),
+                          boundary: boundary,
+                          summary: widget.conquestBySggCode[boundary.sggCode],
+                          bounds: bounds,
+                          canvasSize: canvasSize,
+                          currentScale: currentScale,
+                          onTap: () => widget.onRegionTap(
+                            boundary,
+                            widget.conquestBySggCode[boundary.sggCode],
+                          ),
                         ),
-                      ),
-                    )
-                    .toList(),
-              );
-            },
+                      )
+                      .toList(),
+                );
+              },
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
+  }
+
+  /// 뷰포트 안에 [aspectRatio]를 그대로 유지한 채 최대한 크게 들어가는
+  /// 크기를 계산한다 — `AspectRatio` 위젯의 contain 동작과 동일. 뷰포트가
+  /// 화면 전체(세로로 긴 휴대폰 비율)라 대한민국 지도 비율과 달라도, 지도
+  /// 모양이 눌리거나 늘어나지 않게 이 크기로 콘텐츠를 그린다.
+  Size _fitSize(Size viewport, double aspectRatio) {
+    final viewportAspect = viewport.width / viewport.height;
+    if (viewportAspect > aspectRatio) {
+      final height = viewport.height;
+      return Size(height * aspectRatio, height);
+    }
+    final width = viewport.width;
+    return Size(width, width / aspectRatio);
+  }
+
+  /// 최초 레이아웃 직후 딱 한 번만 전국이 화면 정중앙에 오도록 초기 카메라
+  /// 위치를 적용한다(배율은 [_kMinScale] — 전국이 화면에 꽉 차는 배율).
+  /// 이후 리빌드(그룹 전환, 정복 데이터 갱신 등)에서는 사용자가 직접
+  /// 조작한 팬/줌 상태를 건드리지 않는다. [viewportSize]는 이 위젯을
+  /// 감싸는 [LayoutBuilder]가 전달한 실제 렌더 크기이므로(헤더/탭바를
+  /// 제외한 지도 영역 그대로) 화면 크기를 하드코딩하지 않는다.
+  void _scheduleInitialFocus(
+    _LatLngBounds bounds,
+    Size viewportSize,
+    Size canvasSize,
+  ) {
+    if (_initialFocusApplied) return;
+    _initialFocusApplied = true;
+
+    const scale = _kMinScale;
+    final contentCenter = Offset(canvasSize.width / 2, canvasSize.height / 2);
+    final viewportCenter = Offset(
+      viewportSize.width / 2,
+      viewportSize.height / 2,
+    );
+    final tx = viewportCenter.dx - scale * contentCenter.dx;
+    final ty = viewportCenter.dy - scale * contentCenter.dy;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _transformationController.value = Matrix4.identity()
+        ..translateByDouble(tx, ty, 0, 1)
+        ..scaleByDouble(scale, scale, scale, 1);
+    });
   }
 }
 
@@ -121,6 +212,7 @@ class _RegionTile extends StatelessWidget {
     required this.summary,
     required this.bounds,
     required this.canvasSize,
+    required this.currentScale,
     required this.onTap,
     super.key,
   });
@@ -129,19 +221,26 @@ class _RegionTile extends StatelessWidget {
   final RegionConquestSummary? summary;
   final _LatLngBounds bounds;
   final Size canvasSize;
+  final double currentScale;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     // 신안군·옹진군처럼 부속 도서가 많은 지역은 모든 섬을 다 그리면
     // 바운딩 박스가 흩어진 섬 전체를 감싸 탭 영역이 비정상적으로
-    // 커지고, 화면에는 뜬금없는 점들이 흩어져 보인다. 지도는 본토/본섬
-    // 하나만 대표로 그린다 — 정복 집계는 주소 문자열 매칭이라 폴리곤
-    // 렌더링과 무관하게 정확하다.
-    final largestRing = _largestRing(boundary.polygons);
-    final projectedRings = [
-      largestRing.map((point) => bounds.project(point, canvasSize)).toList(),
-    ];
+    // 커지고, 화면에는 뜬금없는 점들이 흩어져 보인다. 그렇다고 딱 1개만
+    // 남기면 안산시단원구(본토 54km² + 대부도 46km²처럼 비슷한 크기 두
+    // 덩어리로 이뤄진 지역)에서 큰 섬이 통째로 빠져 지도 한가운데 구멍이
+    // 생긴다 — 가장 큰 2개까지만 그려서 두 문제를 함께 완화한다. 정복
+    // 집계는 주소 문자열 매칭이라 폴리곤 렌더링과 무관하게 정확하다.
+    final keptRings = _largestRings(boundary.polygons);
+    final projectedRings = keptRings
+        .map(
+          (ring) => ring
+              .map((point) => bounds.project(point, canvasSize))
+              .toList(),
+        )
+        .toList();
 
     final allPoints = projectedRings.expand((ring) => ring);
     final minX = allPoints.map((point) => point.dx).reduce(math.min);
@@ -178,7 +277,10 @@ class _RegionTile extends StatelessWidget {
             ),
             CustomPaint(
               size: tileSize,
-              painter: _RegionBorderPainter(localRings),
+              painter: _RegionBorderPainter(
+                localRings,
+                strokeWidth: _kBaseBorderStrokeWidth / currentScale,
+              ),
             ),
           ],
         ),
@@ -230,10 +332,16 @@ class _RegionTile extends StatelessWidget {
   }
 }
 
-List<GeoPoint> _largestRing(List<List<GeoPoint>> polygons) {
-  return polygons.reduce(
-    (a, b) => _ringArea(a) >= _ringArea(b) ? a : b,
-  );
+/// 면적 기준 상위 [_kMaxPartsPerRegion]개 파트만 남긴다. 1개만 남기면
+/// 안산시단원구처럼 비슷한 크기 두 덩어리로 이뤄진 지역에서 하나가
+/// 통째로 사라져 구멍이 생기고, 전부 다 그리면 신안군처럼 부속 도서가
+/// 많은 지역이 어수선해진다.
+const int _kMaxPartsPerRegion = 2;
+
+List<List<GeoPoint>> _largestRings(List<List<GeoPoint>> polygons) {
+  final sorted = List<List<GeoPoint>>.of(polygons)
+    ..sort((a, b) => _ringArea(b).compareTo(_ringArea(a)));
+  return sorted.take(_kMaxPartsPerRegion).toList();
 }
 
 /// 신발끈 공식(shoelace formula). 위경도를 그대로 x/y로 써도 같은
@@ -272,16 +380,17 @@ class _RegionClipper extends CustomClipper<Path> {
 /// 지역 경계선. 채색만으로는 서울 25개 구처럼 촘촘한 지역이 옆 지역과
 /// 뭉쳐 보이므로, 각 폴리곤 테두리를 얇게 그어 구분한다.
 class _RegionBorderPainter extends CustomPainter {
-  const _RegionBorderPainter(this.rings);
+  const _RegionBorderPainter(this.rings, {required this.strokeWidth});
 
   final List<List<Offset>> rings;
+  final double strokeWidth;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = MenlogColors.text.withValues(alpha: 0.35)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.6;
+      ..strokeWidth = strokeWidth;
 
     final path = rings.where((ring) => ring.isNotEmpty).fold<Path>(Path(), (
       path,
@@ -296,5 +405,6 @@ class _RegionBorderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RegionBorderPainter oldDelegate) =>
-      oldDelegate.rings != rings;
+      oldDelegate.rings != rings ||
+      oldDelegate.strokeWidth != strokeWidth;
 }
