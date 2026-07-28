@@ -32,6 +32,14 @@ const double _kBaseBorderStrokeWidth = 0.6;
 /// 하나 + ClipPath)만 쓴다. 드릴다운(시/도 확대) 대신, 팬/핀치줌이 가능한
 /// [InteractiveViewer]로 감싸 사용자가 직접 원하는 지역을 확대해서 본다.
 ///
+/// 탭 판정은 지역마다 개별 `GestureDetector`를 두지 않고, 지도 전체에
+/// 단 하나의 `GestureDetector`만 두고 좌표로 어느 폴리곤에 속하는지 직접
+/// 계산한다 — 마포구처럼 길쭉한 지역은 사각 바운딩 박스가 옆의 큰
+/// 지역(고양시 등)과 겹치는데, 지역마다 개별 GestureDetector를 두면 그
+/// 겹치는 영역에서 여러 GestureDetector가 제스처 아레나를 두고 경쟁하다
+/// 엉뚱한 쪽이 이겨서 정답 지역의 콜백이 아예 호출되지 않는 문제가
+/// 있었다(경쟁에서 진 쪽은 판정 로직과 무관하게 콜백 자체가 안 불림).
+///
 /// 화면 전체를 채우는 배경 레이어로 쓰인다 — 자체 배경/사각 테두리 없이
 /// 화면 크기 그대로 [InteractiveViewer]를 채우고, 헤더/검색창/하단 탭바는
 /// 이 위에 반투명 그라디언트로 겹쳐 보이도록 [HomeMapScreen] 쪽에서
@@ -76,6 +84,10 @@ class _ConquestMapViewState extends State<ConquestMapView> {
 
         _scheduleInitialFocus(bounds, viewportSize, canvasSize);
 
+        final projectedRegions = widget.boundaries
+            .map((boundary) => _projectRegion(boundary, bounds, canvasSize))
+            .toList();
+
         return InteractiveViewer(
           transformationController: _transformationController,
           minScale: _kMinScale,
@@ -83,36 +95,59 @@ class _ConquestMapViewState extends State<ConquestMapView> {
           child: SizedBox(
             width: canvasSize.width,
             height: canvasSize.height,
-            child: AnimatedBuilder(
-              animation: _transformationController,
-              builder: (context, child) {
-                final currentScale = _transformationController.value
-                    .getMaxScaleOnAxis();
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: (details) =>
+                  _handleTapUp(details.localPosition, projectedRegions),
+              child: AnimatedBuilder(
+                animation: _transformationController,
+                builder: (context, child) {
+                  final currentScale = _transformationController.value
+                      .getMaxScaleOnAxis();
 
-                return Stack(
-                  children: widget.boundaries
-                      .map(
-                        (boundary) => _RegionTile(
-                          key: ValueKey(boundary.sggCode),
-                          boundary: boundary,
-                          summary: widget.conquestBySggCode[boundary.sggCode],
-                          bounds: bounds,
-                          canvasSize: canvasSize,
-                          currentScale: currentScale,
-                          onTap: () => widget.onRegionTap(
-                            boundary,
-                            widget.conquestBySggCode[boundary.sggCode],
+                  return Stack(
+                    children: projectedRegions
+                        .map(
+                          (region) => _RegionTile(
+                            key: ValueKey(region.boundary.sggCode),
+                            region: region,
+                            summary:
+                                widget.conquestBySggCode[region
+                                    .boundary
+                                    .sggCode],
+                            currentScale: currentScale,
                           ),
-                        ),
-                      )
-                      .toList(),
-                );
-              },
+                        )
+                        .toList(),
+                  );
+                },
+              ),
             ),
           ),
         );
       },
     );
+  }
+
+  void _handleTapUp(Offset point, List<_ProjectedRegion> regions) {
+    final hit = _findRegionAt(point, regions);
+    if (hit == null) return;
+
+    widget.onRegionTap(
+      hit.boundary,
+      widget.conquestBySggCode[hit.boundary.sggCode],
+    );
+  }
+
+  _ProjectedRegion? _findRegionAt(
+    Offset point,
+    List<_ProjectedRegion> regions,
+  ) {
+    return regions.fold<_ProjectedRegion?>(null, (found, region) {
+      if (found != null) return found;
+      if (region.containsCanvasPoint(point)) return region;
+      return null;
+    });
   }
 
   /// 뷰포트 안에 [aspectRatio]를 그대로 유지한 채 최대한 크게 들어가는
@@ -206,84 +241,125 @@ class _LatLngBounds {
   }
 }
 
-class _RegionTile extends StatelessWidget {
-  const _RegionTile({
+/// 지역 하나의 투영 결과 — 렌더링([_RegionTile])과 탭 판정
+/// ([_ConquestMapViewState._handleTapUp])이 같은 좌표 데이터를 공유한다.
+class _ProjectedRegion {
+  const _ProjectedRegion({
     required this.boundary,
-    required this.summary,
-    required this.bounds,
-    required this.canvasSize,
-    required this.currentScale,
-    required this.onTap,
-    super.key,
+    required this.localRings,
+    required this.tileOffset,
+    required this.tileSize,
   });
 
   final SigBoundary boundary;
+  final List<List<Offset>> localRings;
+  final Offset tileOffset;
+  final Size tileSize;
+
+  /// [canvasPoint]는 지도 전체 캔버스 기준 좌표 — 타일 로컬 좌표로 변환한
+  /// 뒤 실제 폴리곤 내부인지 검사한다.
+  bool containsCanvasPoint(Offset canvasPoint) {
+    final localPoint = canvasPoint - tileOffset;
+    return localRings.any((ring) => _isPointInPolygon(localPoint, ring));
+  }
+}
+
+// 신안군·옹진군처럼 부속 도서가 많은 지역은 모든 섬을 다 그리면 바운딩
+// 박스가 흩어진 섬 전체를 감싸 탭 영역이 비정상적으로 커지고, 화면에는
+// 뜬금없는 점들이 흩어져 보인다. 그렇다고 딱 1개만 남기면 안산시단원구
+// (본토 54km² + 대부도 46km²처럼 비슷한 크기 두 덩어리로 이뤄진 지역)에서
+// 큰 섬이 통째로 빠져 지도 한가운데 구멍이 생긴다 — 가장 큰 2개까지만
+// 그려서 두 문제를 함께 완화한다. 정복 집계는 주소 문자열 매칭이라 폴리곤
+// 렌더링과 무관하게 정확하다.
+_ProjectedRegion _projectRegion(
+  SigBoundary boundary,
+  _LatLngBounds bounds,
+  Size canvasSize,
+) {
+  final keptRings = _largestRings(boundary.polygons);
+  final projectedRings = keptRings
+      .map(
+        (ring) =>
+            ring.map((point) => bounds.project(point, canvasSize)).toList(),
+      )
+      .toList();
+
+  final allPoints = projectedRings.expand((ring) => ring);
+  final minX = allPoints.map((point) => point.dx).reduce(math.min);
+  final maxX = allPoints.map((point) => point.dx).reduce(math.max);
+  final minY = allPoints.map((point) => point.dy).reduce(math.min);
+  final maxY = allPoints.map((point) => point.dy).reduce(math.max);
+
+  final localRings = projectedRings
+      .map(
+        (ring) => ring
+            .map((point) => Offset(point.dx - minX, point.dy - minY))
+            .toList(),
+      )
+      .toList();
+
+  final tileSize = Size(math.max(maxX - minX, 1), math.max(maxY - minY, 1));
+
+  return _ProjectedRegion(
+    boundary: boundary,
+    localRings: localRings,
+    tileOffset: Offset(minX, minY),
+    tileSize: tileSize,
+  );
+}
+
+/// 레이 캐스팅(ray casting) 알고리즘 — 점에서 오른쪽으로 그은 반직선이
+/// 폴리곤 변과 몇 번 교차하는지 세어서, 홀수면 내부로 판정한다.
+bool _isPointInPolygon(Offset point, List<Offset> polygon) {
+  final n = polygon.length;
+  final crossingCount = List<int>.generate(n, (i) {
+    final a = polygon[i];
+    final b = polygon[(i + 1) % n];
+    final straddles = (a.dy > point.dy) != (b.dy > point.dy);
+    if (!straddles) return 0;
+
+    final intersectionX =
+        a.dx + (point.dy - a.dy) / (b.dy - a.dy) * (b.dx - a.dx);
+    if (point.dx < intersectionX) return 1;
+    return 0;
+  }).fold<int>(0, (sum, value) => sum + value);
+
+  return crossingCount.isOdd;
+}
+
+class _RegionTile extends StatelessWidget {
+  const _RegionTile({
+    required this.region,
+    required this.summary,
+    required this.currentScale,
+    super.key,
+  });
+
+  final _ProjectedRegion region;
   final RegionConquestSummary? summary;
-  final _LatLngBounds bounds;
-  final Size canvasSize;
   final double currentScale;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    // 신안군·옹진군처럼 부속 도서가 많은 지역은 모든 섬을 다 그리면
-    // 바운딩 박스가 흩어진 섬 전체를 감싸 탭 영역이 비정상적으로
-    // 커지고, 화면에는 뜬금없는 점들이 흩어져 보인다. 그렇다고 딱 1개만
-    // 남기면 안산시단원구(본토 54km² + 대부도 46km²처럼 비슷한 크기 두
-    // 덩어리로 이뤄진 지역)에서 큰 섬이 통째로 빠져 지도 한가운데 구멍이
-    // 생긴다 — 가장 큰 2개까지만 그려서 두 문제를 함께 완화한다. 정복
-    // 집계는 주소 문자열 매칭이라 폴리곤 렌더링과 무관하게 정확하다.
-    final keptRings = _largestRings(boundary.polygons);
-    final projectedRings = keptRings
-        .map(
-          (ring) => ring
-              .map((point) => bounds.project(point, canvasSize))
-              .toList(),
-        )
-        .toList();
-
-    final allPoints = projectedRings.expand((ring) => ring);
-    final minX = allPoints.map((point) => point.dx).reduce(math.min);
-    final maxX = allPoints.map((point) => point.dx).reduce(math.max);
-    final minY = allPoints.map((point) => point.dy).reduce(math.min);
-    final maxY = allPoints.map((point) => point.dy).reduce(math.max);
-
-    final localRings = projectedRings
-        .map(
-          (ring) => ring
-              .map((point) => Offset(point.dx - minX, point.dy - minY))
-              .toList(),
-        )
-        .toList();
-
-    final tileSize = Size(
-      math.max(maxX - minX, 1),
-      math.max(maxY - minY, 1),
-    );
-
     return Positioned(
-      left: minX,
-      top: minY,
-      width: tileSize.width,
-      height: tileSize.height,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Stack(
-          children: [
-            ClipPath(
-              clipper: _RegionClipper(localRings),
-              child: SizedBox.expand(child: _buildContent()),
+      left: region.tileOffset.dx,
+      top: region.tileOffset.dy,
+      width: region.tileSize.width,
+      height: region.tileSize.height,
+      child: Stack(
+        children: [
+          ClipPath(
+            clipper: _RegionClipper(region.localRings),
+            child: SizedBox.expand(child: _buildContent()),
+          ),
+          CustomPaint(
+            size: region.tileSize,
+            painter: _RegionBorderPainter(
+              region.localRings,
+              strokeWidth: _kBaseBorderStrokeWidth / currentScale,
             ),
-            CustomPaint(
-              size: tileSize,
-              painter: _RegionBorderPainter(
-                localRings,
-                strokeWidth: _kBaseBorderStrokeWidth / currentScale,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

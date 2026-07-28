@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:menlog/core/navigation/menlog_tab.dart';
 import 'package:menlog/core/navigation/providers/current_tab_provider.dart';
 import 'package:menlog/core/navigation/widgets/menlog_bottom_nav_bar.dart';
+import 'package:menlog/data/repositories/conquest_repository_provider.dart';
+import 'package:menlog/data/repositories/group_repository_provider.dart';
 import 'package:menlog/features/auth/auth_provider.dart';
 import 'package:menlog/features/auth/login_screen.dart';
 import 'package:menlog/features/feed/presentation/feed_placeholder_screen.dart';
@@ -38,7 +42,7 @@ class MainTabShell extends ConsumerWidget {
       bottomNavigationBar: MenlogBottomNavBar(
         currentTab: currentTab,
         onTabSelected: (tab) => _handleTabSelected(ref, tab),
-        onRecordTap: () => _handleRecordTap(context, ref),
+        onRecordTap: () => unawaited(_handleRecordTap(context, ref)),
       ),
     );
   }
@@ -59,18 +63,22 @@ class MainTabShell extends ConsumerWidget {
     ref.read(currentTabProvider.notifier).state = tab;
   }
 
-  void _handleRecordTap(BuildContext context, WidgetRef ref) {
+  Future<void> _handleRecordTap(BuildContext context, WidgetRef ref) async {
     final isLoggedIn = ref.read(currentUserProvider) != null;
 
     if (!isLoggedIn) {
-      Navigator.of(
+      await Navigator.of(
         context,
       ).push(MaterialPageRoute<void>(builder: (_) => const LoginScreen()));
       return;
     }
 
-    Navigator.of(
+    final didSave = await Navigator.of(
       context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const RecordScreen()));
+    ).push(MaterialPageRoute<bool>(builder: (_) => const RecordScreen()));
+    if (didSave != true) return;
+
+    ref.invalidate(myGroupsProvider);
+    ref.invalidate(conquestByGroupProvider);
   }
 }

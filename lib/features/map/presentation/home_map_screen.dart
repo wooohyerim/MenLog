@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -88,6 +90,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
         child: TextField(
           controller: _searchController,
           onChanged: _handleSearchChanged,
+          onTapOutside: (event) => _handleDismissSearch(),
           decoration: InputDecoration(
             hintText: '가게 이름으로 검색',
             filled: true,
@@ -119,36 +122,41 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
   Widget _buildSearchResultsList() {
     if (_searchResults.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      constraints: const BoxConstraints(maxHeight: _kSearchResultsMaxHeight),
-      decoration: BoxDecoration(
-        color: MenlogColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: MenlogColors.borderPrimaryFaint),
-      ),
-      child: ListView.separated(
-        shrinkWrap: true,
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        itemCount: _searchResults.length,
-        separatorBuilder: (context, index) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final result = _searchResults[index];
-          return ListTile(
-            dense: true,
-            title: Text(
-              result.name,
-              style: const TextStyle(color: MenlogColors.dark),
-            ),
-            subtitle: result.address == null
-                ? null
-                : Text(
-                    result.address!,
-                    style: const TextStyle(color: MenlogColors.text),
-                  ),
-            onTap: () => _handleSearchResultTap(result),
-          );
-        },
+    // TextFieldTapRegion으로 감싸서, 이 리스트 안을 탭하는 건 검색창의
+    // onTapOutside 기준으로 "바깥"으로 취급되지 않게 한다 — 안 그러면
+    // 결과를 탭하는 순간 리스트가 먼저 사라져 선택이 씹힐 수 있다.
+    return TextFieldTapRegion(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        constraints: const BoxConstraints(maxHeight: _kSearchResultsMaxHeight),
+        decoration: BoxDecoration(
+          color: MenlogColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: MenlogColors.borderPrimaryFaint),
+        ),
+        child: ListView.separated(
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          itemCount: _searchResults.length,
+          separatorBuilder: (context, index) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final result = _searchResults[index];
+            return ListTile(
+              dense: true,
+              title: Text(
+                result.name,
+                style: const TextStyle(color: MenlogColors.dark),
+              ),
+              subtitle: result.address == null
+                  ? null
+                  : Text(
+                      result.address!,
+                      style: const TextStyle(color: MenlogColors.text),
+                    ),
+              onTap: () => _handleSearchResultTap(result),
+            );
+          },
+        ),
       ),
     );
   }
@@ -276,6 +284,12 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
     );
   }
 
+  void _handleDismissSearch() {
+    FocusScope.of(context).unfocus();
+    if (_searchResults.isEmpty) return;
+    setState(() => _searchResults = []);
+  }
+
   Future<void> _handleSearchChanged(String query) async {
     if (query.trim().isEmpty) {
       setState(() => _searchResults = []);
@@ -296,11 +310,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
   void _handleSearchResultTap(RamenShopSearchResult result) {
     setState(() => _searchResults = []);
     _searchController.clear();
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => RecordScreen(prefilledShopName: result.name),
-      ),
-    );
+    unawaited(_pushRecordScreen(prefilledShop: result));
   }
 
   void _handleRegionTap(SigBoundary boundary, RegionConquestSummary? summary) {
@@ -312,9 +322,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
           regionName: '${boundary.sidoName} ${boundary.sggName}',
           onRecordTap: () {
             Navigator.of(context).pop();
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const RecordScreen()),
-            );
+            unawaited(_pushRecordScreen());
           },
         ),
       );
@@ -327,5 +335,22 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
       isScrollControlled: true,
       builder: (context) => RegionVisitBottomSheet(summary: summary),
     );
+  }
+
+  /// 기록하기 화면에서 저장 성공 시(`pop(true)`) 돌아오면, 방금 저장한
+  /// 방문이 바로 반영되도록 그룹/정복맵 데이터를 다시 불러온다 —
+  /// autoDispose 프로바이더라도 지도 화면이 계속 마운트돼 있으면 구독이
+  /// 유지돼서 저절로 새로고침되지 않는다.
+  Future<void> _pushRecordScreen({RamenShopSearchResult? prefilledShop}) async {
+    final didSave = await Navigator.of(context).push(
+      MaterialPageRoute<bool>(
+        builder: (context) => RecordScreen(prefilledShop: prefilledShop),
+      ),
+    );
+    if (didSave != true) return;
+    if (!mounted) return;
+
+    ref.invalidate(myGroupsProvider);
+    ref.invalidate(conquestByGroupProvider);
   }
 }
