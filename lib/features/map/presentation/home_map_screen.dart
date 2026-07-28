@@ -56,13 +56,14 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
   @override
   Widget build(BuildContext context) {
     final groupsAsync = ref.watch(myGroupsProvider);
+    final maxMemberCount = ref.watch(maxGroupMemberCountProvider).valueOrNull;
 
     return ColoredBox(
       color: MenlogColors.background,
       child: SafeArea(
         child: Column(
           children: [
-            const MenlogHeader(friendGroupMemberCount: 3),
+            MenlogHeader(friendGroupMemberCount: maxMemberCount ?? 1),
             const SizedBox(height: _kSpacingSmall),
             _buildSearchField(),
             _buildSearchResultsList(),

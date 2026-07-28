@@ -17,6 +17,22 @@ class GroupRepository {
         .map((row) => Group.fromJson(row['groups'] as Map<String, dynamic>))
         .toList();
   }
+
+  /// 그룹별 멤버 수. 개인 그룹은 본인 1명뿐이라 항상 1이 나온다 — 헤더
+  /// 친구 아이콘 노출 여부(멤버 2명 이상인 그룹이 있는지) 판단에 쓰인다.
+  Future<Map<String, int>> fetchMemberCounts(List<String> groupIds) async {
+    if (groupIds.isEmpty) return {};
+
+    final rows = await supabase
+        .from('group_members')
+        .select('group_id')
+        .inFilter('group_id', groupIds);
+
+    return rows.fold<Map<String, int>>({}, (counts, row) {
+      final groupId = row['group_id'] as String;
+      return {...counts, groupId: (counts[groupId] ?? 0) + 1};
+    });
+  }
 }
 
 final groupRepository = GroupRepository();

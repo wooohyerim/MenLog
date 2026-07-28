@@ -21,7 +21,8 @@ class MenlogHeader extends StatelessWidget {
     super.key,
   });
 
-  /// 현재 선택된 그룹(기본값: 개인 그룹)의 멤버 수. 1 이하면 뱃지를 숨깁니다.
+  /// 현재 선택된 그룹(기본값: 개인 그룹)의 멤버 수. 개인 그룹 외에 멤버가
+  /// 2명 이상인 그룹이 하나도 없으면(1 이하) 아이콘 자체를 숨깁니다.
   final int friendGroupMemberCount;
   final VoidCallback? onFriendsTap;
 
@@ -52,6 +53,8 @@ class MenlogHeader extends StatelessWidget {
   }
 
   Widget _buildFriendsButton() {
+    if (friendGroupMemberCount <= 1) return const SizedBox.shrink();
+
     return InkWell(
       borderRadius: BorderRadius.circular(_kIconButtonSize / 2),
       onTap: () => onFriendsTap?.call(),
@@ -85,8 +88,6 @@ class MenlogHeader extends StatelessWidget {
   }
 
   Widget _buildBadge() {
-    if (friendGroupMemberCount <= 1) return const SizedBox.shrink();
-
     return Positioned(
       top: -3,
       right: -3,

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:menlog/core/theme/menlog_colors.dart';
 import 'package:menlog/data/repositories/auth_repository.dart';
 import 'package:menlog/features/auth/auth_provider.dart';
+import 'package:menlog/features/group/presentation/group_invite_screen.dart';
 import 'package:menlog/features/settings/presentation/nickname_edit_screen.dart';
 import 'package:menlog/features/settings/presentation/notification_settings_screen.dart';
 
@@ -58,6 +59,17 @@ class SettingsScreen extends ConsumerWidget {
               label: '알림 설정',
               onTap: () =>
                   _openScreen(context, const NotificationSettingsScreen()),
+            ),
+            const Divider(
+              height: 1,
+              thickness: 1,
+              indent: _kListRowHorizontalPadding,
+              endIndent: _kListRowHorizontalPadding,
+              color: MenlogColors.borderPrimaryFaint,
+            ),
+            _SettingsListRow(
+              label: '그룹 초대',
+              onTap: () => _openScreen(context, const GroupInviteScreen()),
             ),
             const Spacer(),
             _AccountActionsRow(
