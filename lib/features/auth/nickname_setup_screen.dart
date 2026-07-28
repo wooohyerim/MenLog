@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:menlog/data/repositories/auth_repository.dart';
+import 'package:menlog/data/repositories/group_repository.dart';
 import 'package:menlog/features/auth/auth_provider.dart';
 
 const int _nicknameMaxLength = 12;
@@ -61,6 +62,7 @@ class _NicknameSetupScreenState extends ConsumerState<NicknameSetupScreen> {
         nickname: nickname,
         email: user.email,
       );
+      await groupRepository.ensurePersonalGroup(user.id);
       if (!mounted) return;
       context.go(widget.redirectPath);
     } catch (e) {

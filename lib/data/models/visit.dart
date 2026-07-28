@@ -40,13 +40,16 @@ class Visit {
       mediaUrl: json['media_url'] as String,
       mediaType: MediaType.values.byName(json['media_type'] as String),
       thumbnailUrl: json['thumbnail_url'] as String,
-      brothType: json['broth_type'] != null
-          ? BrothType.values.byName(json['broth_type'] as String)
-          : null,
+      brothType: _parseBrothType(json['broth_type'] as String?),
       rating: json['rating'] as int,
       memo: json['memo'] as String?,
       visitedAt: DateTime.parse(json['visited_at'] as String),
       createdAt: DateTime.parse(json['created_at'] as String),
     );
+  }
+
+  static BrothType? _parseBrothType(String? value) {
+    if (value == null) return null;
+    return BrothType.values.byName(value);
   }
 }
